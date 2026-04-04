@@ -16,7 +16,7 @@ Claude Code → claude-sub-proxy → Opus requests   → api.anthropic.com (your
 
 ```bash
 # Clone
-git clone https://github.com/GaryT/claude-sub-proxy.git
+git clone https://github.com/gaztrabisme/claude-sub-proxy.git
 cd claude-sub-proxy
 
 # Configure
