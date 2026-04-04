@@ -1,0 +1,12 @@
+{
+  "port": 13456,
+  "routes": [
+    {
+      "name": "MiniMax",
+      "match": "haiku|sonnet",
+      "api_base": "https://api.minimax.io/anthropic",
+      "api_key": "$MINIMAX_API_KEY",
+      "model": "MiniMax-M2.7"
+    }
+  ]
+}
