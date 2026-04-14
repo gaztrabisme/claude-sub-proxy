@@ -38,6 +38,14 @@ export function normalizeAuthScheme(value) {
   throw new Error(`Unsupported auth_scheme "${value}". Use "x-api-key" or "bearer".`);
 }
 
+export function formatListenError(error, port) {
+  if (error?.code === "EADDRINUSE") {
+    return `Port ${port} is already in use on 127.0.0.1. Stop the existing process or set CSP_PORT to another port.`;
+  }
+
+  return error?.message || "Failed to start proxy server.";
+}
+
 function findRoute(routes, model) {
   return routes.find((route) => route.match.test(model));
 }
@@ -111,6 +119,11 @@ export function startProxy() {
       res.writeHead(502, { "content-type": "application/json" });
       res.end(JSON.stringify({ error: { message: error.message, type: "proxy_error" } }));
     }
+  });
+
+  server.on("error", (error) => {
+    console.error(formatListenError(error, port));
+    process.exitCode = 1;
   });
 
   server.listen(port, "127.0.0.1", () => {

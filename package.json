@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node cli.mjs start",
-    "test": "node --test && bash -n install.sh"
+    "test": "node --test && bash -n install.sh && bash -n uninstall.sh"
   },
   "keywords": ["claude-code", "proxy", "subagent", "minimax", "routing"],
   "license": "MIT",

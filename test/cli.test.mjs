@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { addRoute, maskSecret, removeRouteByName } from "../config.mjs";
-import { buildServiceDefinition, getLaunchctlDomain } from "../service.mjs";
-import { normalizeAuthScheme } from "../runtime.mjs";
+import * as service from "../service.mjs";
+import { formatListenError, normalizeAuthScheme } from "../runtime.mjs";
 
 test("maskSecret preserves env references", () => {
   assert.equal(maskSecret("$MINIMAX_API_KEY"), "$MINIMAX_API_KEY");
@@ -58,7 +58,7 @@ test("removeRouteByName fails for duplicated names", () => {
 });
 
 test("buildServiceDefinition renders macOS launch agent", () => {
-  const plist = buildServiceDefinition({
+  const plist = service.buildServiceDefinition({
     platform: "macos",
     nodePath: "/usr/local/bin/node",
     scriptPath: "/app/cli.mjs",
@@ -72,7 +72,7 @@ test("buildServiceDefinition renders macOS launch agent", () => {
 });
 
 test("buildServiceDefinition renders systemd user unit", () => {
-  const unit = buildServiceDefinition({
+  const unit = service.buildServiceDefinition({
     platform: "linux",
     nodePath: "/usr/bin/node",
     scriptPath: "/app/cli.mjs",
@@ -96,12 +96,19 @@ test("normalizeAuthScheme rejects unsupported values", () => {
   assert.throws(() => normalizeAuthScheme("basic"));
 });
 
+test("formatListenError explains port conflicts", () => {
+  assert.equal(
+    formatListenError({ code: "EADDRINUSE", message: "listen EADDRINUSE" }, 13456),
+    "Port 13456 is already in use on 127.0.0.1. Stop the existing process or set CSP_PORT to another port.",
+  );
+});
+
 test("getLaunchctlDomain prefers sudo uid when present", () => {
   const previous = process.env.SUDO_UID;
   process.env.SUDO_UID = "501";
 
   try {
-    assert.equal(getLaunchctlDomain(), "gui/501");
+    assert.equal(service.getLaunchctlDomain(), "gui/501");
   } finally {
     if (previous === undefined) {
       delete process.env.SUDO_UID;

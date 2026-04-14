@@ -48,6 +48,7 @@ print_path_warning() {
 main() {
   local tmp_dir archive_url archive_path package_dir global_bin installed_cli
 
+  tmp_dir=""
   need_cmd bash
   need_cmd curl
   need_cmd tar
@@ -55,7 +56,7 @@ main() {
   need_cmd npm
 
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/claude-sub-proxy.XXXXXX")"
-  trap 'rm -rf "$tmp_dir"' EXIT
+  trap '[ -n "${tmp_dir:-}" ] && rm -rf "$tmp_dir"' EXIT
 
   archive_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/tags/${REPO_REF}.tar.gz"
   archive_path="${tmp_dir}/package.tar.gz"
@@ -73,10 +74,10 @@ main() {
   global_bin="$(detect_npm_global_bin || true)"
   installed_cli=""
 
-  if command -v "$PACKAGE_NAME" >/dev/null 2>&1; then
-    installed_cli="$(command -v "$PACKAGE_NAME")"
-  elif [ -n "$global_bin" ] && [ -x "${global_bin}/${PACKAGE_NAME}" ]; then
+  if [ -n "$global_bin" ] && [ -x "${global_bin}/${PACKAGE_NAME}" ]; then
     installed_cli="${global_bin}/${PACKAGE_NAME}"
+  elif command -v "$PACKAGE_NAME" >/dev/null 2>&1; then
+    installed_cli="$(command -v "$PACKAGE_NAME")"
   else
     die "installation finished but ${PACKAGE_NAME} could not be located"
   fi

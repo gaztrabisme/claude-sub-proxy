@@ -23,7 +23,7 @@ import {
   writeSettingsAtomic,
 } from "./claude-settings.mjs";
 import { startProxy } from "./runtime.mjs";
-import { installService, startService, stopService } from "./service.mjs";
+import { installService, restartService, startService, stopService } from "./service.mjs";
 
 const ROUTE_PROMPTS = [
   { key: "name", label: "Route name", example: "MiniMax", required: true },
@@ -40,6 +40,7 @@ function printHelp() {
   claude-sub-proxy install-claude
   claude-sub-proxy install-service
   claude-sub-proxy service start
+  claude-sub-proxy service restart
   claude-sub-proxy service stop
   claude-sub-proxy configure init
   claude-sub-proxy configure claude
@@ -249,6 +250,12 @@ async function main(argv) {
     if (command === "service" && subcommand === "stop") {
       await stopService();
       console.log("Service stopped");
+      return;
+    }
+
+    if (command === "service" && subcommand === "restart") {
+      await restartService();
+      console.log("Service restarted");
       return;
     }
 

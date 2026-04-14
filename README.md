@@ -41,6 +41,12 @@ cd claude-sub-proxy
 ./install.sh
 ```
 
+Uninstall:
+
+```bash
+./uninstall.sh
+```
+
 ## CLI commands
 
 ```bash
@@ -48,6 +54,7 @@ claude-sub-proxy start
 claude-sub-proxy install-claude
 claude-sub-proxy install-service
 claude-sub-proxy service start
+claude-sub-proxy service restart
 claude-sub-proxy service stop
 claude-sub-proxy configure init
 claude-sub-proxy configure claude
@@ -69,6 +76,12 @@ By default the installer downloads the `latest` Git tag. Override it with `CLAUD
 ```bash
 CLAUDE_SUB_PROXY_INSTALL_REF=v1.0.0 \
 curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/install.sh | bash
+```
+
+To fully remove the global package, service, config, logs, and local proxy Claude settings, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/uninstall.sh | bash
 ```
 
 Requirements:
@@ -149,6 +162,7 @@ You can route different models to different providers:
 ```bash
 claude-sub-proxy install-service
 claude-sub-proxy service start
+claude-sub-proxy service restart
 claude-sub-proxy service stop
 ```
 

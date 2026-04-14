@@ -208,3 +208,21 @@ export async function stopService() {
 
   await runServiceManager("systemctl", ["--user", "stop", SERVICE_NAME]);
 }
+
+export async function restartService() {
+  const platform = getPlatform();
+
+  if (!isServiceInstalled(platform)) {
+    const error = new Error("Service is not installed.");
+    error.code = "SERVICE_NOT_INSTALLED";
+    throw error;
+  }
+
+  if (platform === "macos") {
+    const serviceTarget = `${getLaunchctlDomain()}/${SERVICE_NAME}`;
+    await runServiceManager("launchctl", ["kickstart", "-k", serviceTarget]);
+    return;
+  }
+
+  await runServiceManager("systemctl", ["--user", "restart", SERVICE_NAME]);
+}
