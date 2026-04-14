@@ -1,5 +1,6 @@
 import { createServer } from "http";
 import { getConfigPath, loadConfig } from "./config.mjs";
+import { createLogger } from "./logger.mjs";
 
 const ANTHROPIC_API = "https://api.anthropic.com";
 
@@ -52,6 +53,7 @@ function findRoute(routes, model) {
 
 export function startProxy() {
   const { port, routes } = getRuntimeConfig();
+  const logger = createLogger();
 
   const server = createServer(async (req, res) => {
     const chunks = [];
@@ -94,7 +96,7 @@ export function startProxy() {
 
     const finalBody = route ? JSON.stringify(body) : rawBody;
     const tag = route ? `-> ${route.name} (${route.model})` : `-> Anthropic (${model})`;
-    process.stdout.write(`${new Date().toISOString().slice(11, 19)} ${tag}\n`);
+    logger.info(`${new Date().toISOString().slice(11, 19)} ${tag}`);
 
     try {
       const response = await fetch(targetUrl, {
@@ -122,14 +124,18 @@ export function startProxy() {
   });
 
   server.on("error", (error) => {
-    console.error(formatListenError(error, port));
+    logger.error(formatListenError(error, port));
     process.exitCode = 1;
   });
 
   server.listen(port, "127.0.0.1", () => {
-    console.log(`claude-sub-proxy on 127.0.0.1:${port}`);
-    console.log(`Routes: ${routes.map((route) => `${route.match} -> ${route.name}`).join(", ") || "none"}`);
-    console.log("Default: Anthropic (passthrough)");
+    logger.info(`claude-sub-proxy on 127.0.0.1:${port}`);
+    logger.info(`Routes: ${routes.map((route) => `${route.match} -> ${route.name}`).join(", ") || "none"}`);
+    logger.info("Default: Anthropic (passthrough)");
+  });
+
+  server.on("close", () => {
+    logger.close();
   });
 
   return server;

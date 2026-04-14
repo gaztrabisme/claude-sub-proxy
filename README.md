@@ -78,7 +78,7 @@ CLAUDE_SUB_PROXY_INSTALL_REF=v1.0.0 \
 curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/install.sh | bash
 ```
 
-To fully remove the global package, service, config, logs, and local proxy Claude settings, run:
+To fully remove the global package, service, config, and local proxy Claude settings, run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/uninstall.sh | bash
@@ -172,6 +172,10 @@ Supported service managers:
 - Linux: `systemd --user` unit in `~/.config/systemd/user`
 
 Service mode should use raw API keys in `~/.claude-sub-proxy/config.json`. Shell environment variables are not a reliable source for background services.
+Service logs are system-managed:
+
+- macOS: sent to the system log via `logger`
+- Linux: sent to `journald` and viewed with `journalctl`
 
 ## Configure Claude endpoint
 
@@ -212,6 +216,20 @@ PRs welcome for other providers.
 |---|---|
 | `CSP_CONFIG` | Path to config file (default: `~/.claude-sub-proxy/config.json`) |
 | `CSP_PORT` | Override port (default: from config or `13456`) |
+
+## Troubleshooting
+
+### Linux
+
+- Check service status with `systemctl --user status com.claude-sub-proxy`.
+- Stream logs with `journalctl --user-unit com.claude-sub-proxy -f`.
+- Show recent logs with `journalctl --user-unit com.claude-sub-proxy --since "1 hour ago"`.
+
+### MacOS
+
+- Check service status with `launchctl print gui/$(id -u)/com.claude-sub-proxy`.
+- Stream logs with `log stream --style syslog --predicate 'eventMessage CONTAINS "claude-sub-proxy"'`.
+- Show recent logs with `log show --last 1h --style syslog --predicate 'eventMessage CONTAINS "claude-sub-proxy"'`.
 
 ## License
 

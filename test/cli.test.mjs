@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { addRoute, maskSecret, removeRouteByName } from "../config.mjs";
+import { createLogger, createMacosSystemLogger } from "../logger.mjs";
 import * as service from "../service.mjs";
 import { formatListenError, normalizeAuthScheme } from "../runtime.mjs";
 
@@ -63,12 +64,14 @@ test("buildServiceDefinition renders macOS launch agent", () => {
     nodePath: "/usr/local/bin/node",
     scriptPath: "/app/cli.mjs",
     configPath: "/Users/me/.claude-sub-proxy/config.json",
-    logDir: "/Users/me/.claude-sub-proxy",
   });
 
   assert.match(plist, /<string>\/app\/cli.mjs<\/string>/);
   assert.match(plist, /<string>start<\/string>/);
   assert.match(plist, /<key>CSP_CONFIG<\/key>/);
+  assert.match(plist, /<key>CSP_SERVICE_MODE<\/key>/);
+  assert.doesNotMatch(plist, /StandardOutPath/);
+  assert.doesNotMatch(plist, /StandardErrorPath/);
 });
 
 test("buildServiceDefinition renders systemd user unit", () => {
@@ -77,11 +80,13 @@ test("buildServiceDefinition renders systemd user unit", () => {
     nodePath: "/usr/bin/node",
     scriptPath: "/app/cli.mjs",
     configPath: "/home/me/.claude-sub-proxy/config.json",
-    logDir: "/home/me/.claude-sub-proxy",
   });
 
   assert.match(unit, /ExecStart=\/usr\/bin\/node \/app\/cli\.mjs start/);
   assert.match(unit, /Environment=CSP_CONFIG=\/home\/me\/\.claude-sub-proxy\/config\.json/);
+  assert.match(unit, /Environment=CSP_SERVICE_MODE=1/);
+  assert.match(unit, /StandardOutput=journal/);
+  assert.match(unit, /StandardError=journal/);
 });
 
 test("normalizeAuthScheme defaults to x-api-key", () => {
@@ -104,16 +109,96 @@ test("formatListenError explains port conflicts", () => {
 });
 
 test("getLaunchctlDomain prefers sudo uid when present", () => {
-  const previous = process.env.SUDO_UID;
-  process.env.SUDO_UID = "501";
+  const previousSudoUid = process.env.SUDO_UID;
+  const previousGetuid = process.getuid;
+  process.getuid = () => 501;
 
   try {
+    delete process.env.SUDO_UID;
     assert.equal(service.getLaunchctlDomain(), "gui/501");
   } finally {
-    if (previous === undefined) {
+    process.getuid = previousGetuid;
+    if (previousSudoUid === undefined) {
       delete process.env.SUDO_UID;
     } else {
-      process.env.SUDO_UID = previous;
+      process.env.SUDO_UID = previousSudoUid;
     }
   }
+});
+
+test("getLaunchctlServiceTarget composes the launchctl label", () => {
+  assert.equal(service.getLaunchctlServiceTarget("gui/501"), "gui/501/com.claude-sub-proxy");
+});
+
+test("getLaunchctlDomain rejects sudo on macOS", () => {
+  const previousSudoUid = process.env.SUDO_UID;
+  const previousGetuid = process.getuid;
+  process.env.SUDO_UID = "501";
+  process.getuid = () => 0;
+
+  try {
+    assert.throws(() => service.getLaunchctlDomain(), /without sudo/);
+  } finally {
+    process.getuid = previousGetuid;
+    if (previousSudoUid === undefined) {
+      delete process.env.SUDO_UID;
+    } else {
+      process.env.SUDO_UID = previousSudoUid;
+    }
+  }
+});
+
+test("createLogger uses stdio outside macOS service mode", () => {
+  const logger = createLogger({ isServiceMode: false, platform: "darwin" });
+  assert.equal(typeof logger.info, "function");
+  assert.equal(typeof logger.error, "function");
+  assert.equal(typeof logger.close, "function");
+});
+
+test("createMacosSystemLogger writes to logger stdin", () => {
+  const writes = [];
+  let ended = false;
+  const fakeChild = {
+    pid: 123,
+    exitCode: null,
+    stdin: {
+      destroyed: false,
+      write(chunk) {
+        writes.push(chunk);
+      },
+      end() {
+        ended = true;
+      },
+      on() {},
+    },
+    on() {},
+  };
+
+  const logger = createMacosSystemLogger({
+    spawnImpl() {
+      return fakeChild;
+    },
+  });
+
+  logger.info("hello");
+  logger.error("world");
+  logger.close();
+
+  assert.deepEqual(writes, ["hello\n", "world\n"]);
+  assert.equal(ended, true);
+});
+
+test("createMacosSystemLogger fails if logger cannot start", () => {
+  assert.throws(
+    () => createMacosSystemLogger({
+      spawnImpl() {
+        return {
+          pid: undefined,
+          stdin: null,
+          on() {},
+        };
+      },
+    }),
+    /Failed to start macOS system logger/,
+  );
 });

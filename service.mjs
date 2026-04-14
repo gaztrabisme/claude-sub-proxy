@@ -17,13 +17,11 @@ export function getServiceInstallPaths(platform = getPlatform()) {
   if (platform === "macos") {
     return {
       serviceFilePath: resolve(homedir(), "Library", "LaunchAgents", `${SERVICE_NAME}.plist`),
-      logDir: getConfigDir(),
     };
   }
 
   return {
     serviceFilePath: resolve(homedir(), ".config", "systemd", "user", `${SERVICE_NAME}.service`),
-    logDir: getConfigDir(),
   };
 }
 
@@ -32,8 +30,11 @@ export function isServiceInstalled(platform = getPlatform()) {
 }
 
 export function getLaunchctlDomain() {
-  const rawUid = process.env.SUDO_UID || String(process.getuid());
-  const uid = Number(rawUid);
+  if (process.getuid() === 0 || process.env.SUDO_UID) {
+    throw new Error("macOS user services must be installed as the logged-in user. Run `claude-sub-proxy install-service` without sudo.");
+  }
+
+  const uid = Number(process.getuid());
 
   if (!Number.isInteger(uid) || uid < 1) {
     throw new Error("macOS user services must be installed as a regular user session. Run `claude-sub-proxy install-service` without sudo.");
@@ -42,7 +43,11 @@ export function getLaunchctlDomain() {
   return `gui/${uid}`;
 }
 
-export function buildServiceDefinition({ platform = getPlatform(), nodePath, scriptPath, configPath, logDir }) {
+export function getLaunchctlServiceTarget(domain = getLaunchctlDomain()) {
+  return `${domain}/${SERVICE_NAME}`;
+}
+
+export function buildServiceDefinition({ platform = getPlatform(), nodePath, scriptPath, configPath }) {
   if (platform === "macos") {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -60,15 +65,13 @@ export function buildServiceDefinition({ platform = getPlatform(), nodePath, scr
   <dict>
     <key>CSP_CONFIG</key>
     <string>${configPath}</string>
+    <key>CSP_SERVICE_MODE</key>
+    <string>1</string>
   </dict>
   <key>RunAtLoad</key>
   <false/>
   <key>KeepAlive</key>
   <true/>
-  <key>StandardOutPath</key>
-  <string>${resolve(logDir, "service.log")}</string>
-  <key>StandardErrorPath</key>
-  <string>${resolve(logDir, "service.log")}</string>
 </dict>
 </plist>
 `;
@@ -81,11 +84,12 @@ After=network.target
 [Service]
 Type=simple
 Environment=CSP_CONFIG=${configPath}
+Environment=CSP_SERVICE_MODE=1
 ExecStart=${nodePath} ${scriptPath} start
 Restart=always
 RestartSec=3
-StandardOutput=append:${resolve(logDir, "service.log")}
-StandardError=append:${resolve(logDir, "service.log")}
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=default.target
@@ -135,26 +139,27 @@ function bootoutLaunchctlService(domain, serviceFilePath) {
 
 export async function installService({ nodePath, scriptPath, configPath }) {
   const platform = getPlatform();
-  const { serviceFilePath, logDir } = getServiceInstallPaths(platform);
+  const { serviceFilePath } = getServiceInstallPaths(platform);
   const existedBeforeInstall = existsSync(serviceFilePath);
 
   ensureConfigFile();
   mkdirSync(dirname(serviceFilePath), { recursive: true });
-  mkdirSync(logDir, { recursive: true });
+  mkdirSync(getConfigDir(), { recursive: true });
 
   writeFileSync(
     serviceFilePath,
-    buildServiceDefinition({ platform, nodePath, scriptPath, configPath, logDir }),
+    buildServiceDefinition({ platform, nodePath, scriptPath, configPath }),
   );
 
   if (platform === "macos") {
     const domain = getLaunchctlDomain();
+    const serviceTarget = getLaunchctlServiceTarget(domain);
 
     if (existedBeforeInstall) {
       bootoutLaunchctlService(domain, serviceFilePath);
     }
+    await runServiceManager("launchctl", ["enable", serviceTarget]);
     await runServiceManager("launchctl", ["bootstrap", domain, serviceFilePath]);
-    await runServiceManager("launchctl", ["enable", `${domain}/${SERVICE_NAME}`]);
     return { platform, serviceFilePath };
   }
 
@@ -175,15 +180,16 @@ export async function startService() {
   if (platform === "macos") {
     const domain = getLaunchctlDomain();
     const { serviceFilePath } = getServiceInstallPaths(platform);
-    const serviceTarget = `${domain}/${SERVICE_NAME}`;
+    const serviceTarget = getLaunchctlServiceTarget(domain);
 
     if (isLaunchctlServiceLoaded(serviceTarget)) {
       await runServiceManager("launchctl", ["kickstart", "-k", serviceTarget]);
       return;
     }
 
-    await runServiceManager("launchctl", ["bootstrap", domain, serviceFilePath]);
     await runServiceManager("launchctl", ["enable", serviceTarget]);
+    await runServiceManager("launchctl", ["bootstrap", domain, serviceFilePath]);
+    await runServiceManager("launchctl", ["kickstart", "-k", serviceTarget]);
     return;
   }
 
@@ -219,7 +225,7 @@ export async function restartService() {
   }
 
   if (platform === "macos") {
-    const serviceTarget = `${getLaunchctlDomain()}/${SERVICE_NAME}`;
+    const serviceTarget = getLaunchctlServiceTarget();
     await runServiceManager("launchctl", ["kickstart", "-k", serviceTarget]);
     return;
   }
