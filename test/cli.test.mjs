@@ -14,6 +14,14 @@ test("maskSecret redacts raw keys", () => {
   assert.equal(maskSecret("abcdef123456"), "ab********56");
 });
 
+test("maskSecret caps the masked middle section for long raw keys", () => {
+  assert.equal(maskSecret("abcdefghijklmnopqrstuvwxyz"), "ab********yz");
+});
+
+test("maskSecret keeps a minimum visible redaction for short raw keys", () => {
+  assert.equal(maskSecret("abcdef"), "ab****ef");
+});
+
 test("addRoute rejects duplicate names", () => {
   const config = {
     port: 13456,

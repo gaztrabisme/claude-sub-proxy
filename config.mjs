@@ -96,5 +96,5 @@ export function maskSecret(value) {
   if (!value) return "";
   if (value.startsWith("$")) return value;
   if (value.length <= 4) return "*".repeat(value.length);
-  return `${value.slice(0, 2)}${"*".repeat(Math.max(4, value.length - 4))}${value.slice(-2)}`;
+  return `${value.slice(0, 2)}${"*".repeat(Math.min(8, Math.max(4, value.length - 4)))}${value.slice(-2)}`;
 }
