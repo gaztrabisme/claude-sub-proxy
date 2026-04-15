@@ -18,6 +18,7 @@ import {
 import {
   listSettingsScopes,
   loadSettingsFile,
+  removeAnthropicBaseUrl,
   resolveSettingsPath,
   setAnthropicBaseUrl,
   writeSettingsAtomic,
@@ -37,16 +38,56 @@ const ROUTE_PROMPTS = [
 function printHelp() {
   console.log(`Usage:
   claude-sub-proxy start
-  claude-sub-proxy install-claude
-  claude-sub-proxy install-service
+
+  claude-sub-proxy claude install
+  claude-sub-proxy claude disable
+
+  claude-sub-proxy service install
   claude-sub-proxy service start
   claude-sub-proxy service restart
   claude-sub-proxy service stop
+
   claude-sub-proxy configure init
-  claude-sub-proxy configure claude
   claude-sub-proxy configure show
   claude-sub-proxy configure add
-  claude-sub-proxy configure remove <name>`);
+  claude-sub-proxy configure remove <name>
+
+Guide:
+  start
+    Start the proxy in the foreground for local testing or manual runs.
+
+  configure
+    configure init
+      Create ~/.claude-sub-proxy/config.json from the example template.
+    configure show
+      Show the active config and redact API keys in terminal output.
+    configure add
+      Interactively add a routing rule for matching Claude models.
+    configure remove <name>
+      Remove a routing rule by its unique route name.
+
+  claude
+    claude install
+      Write ANTHROPIC_BASE_URL into Claude settings so Claude Code uses this proxy.
+    claude disable
+      Remove ANTHROPIC_BASE_URL from Claude settings and restore default Claude endpoint behavior.
+
+  service
+    service install
+      Install the background user service for the current OS.
+    service start
+      Start the installed background service.
+    service restart
+      Restart the installed background service.
+    service stop
+      Stop the installed background service.
+
+Typical setup:
+  1. claude-sub-proxy configure init
+  2. claude-sub-proxy configure add
+  3. claude-sub-proxy claude install
+  4. claude-sub-proxy service install
+  5. claude-sub-proxy service start`);
 }
 
 function formatTable(rows) {
@@ -110,23 +151,27 @@ function getSuggestedAnthropicBaseUrl() {
   }
 }
 
+async function promptForSettingsScope(rl) {
+  const scopes = listSettingsScopes();
+  console.log("Choose Claude settings target:");
+  scopes.forEach((scope, index) => {
+    console.log(`  ${index + 1}. ${scope.label}`);
+  });
+
+  const scopeAnswer = await rl.question("Selection [1]: ");
+  const selectedIndex = scopeAnswer.trim() ? Number(scopeAnswer.trim()) : 1;
+  if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || selectedIndex > scopes.length) {
+    throw new Error(`Invalid selection: ${scopeAnswer.trim() || "(empty)"}`);
+  }
+
+  return scopes[selectedIndex - 1];
+}
+
 async function runClaudeInstallFlow() {
   const rl = createInterface({ input, output, terminal: Boolean(output.isTTY) });
 
   try {
-    const scopes = listSettingsScopes();
-    console.log("Choose Claude settings target:");
-    scopes.forEach((scope, index) => {
-      console.log(`  ${index + 1}. ${scope.label}`);
-    });
-
-    const scopeAnswer = await rl.question("Selection [1]: ");
-    const selectedIndex = scopeAnswer.trim() ? Number(scopeAnswer.trim()) : 1;
-    if (!Number.isInteger(selectedIndex) || selectedIndex < 1 || selectedIndex > scopes.length) {
-      throw new Error(`Invalid selection: ${scopeAnswer.trim() || "(empty)"}`);
-    }
-
-    const selectedScope = scopes[selectedIndex - 1];
+    const selectedScope = await promptForSettingsScope(rl);
     const settingsPath = resolveSettingsPath(selectedScope.key, { homeDir: homedir(), cwd: process.cwd() });
     const suggestedBaseUrl = getSuggestedAnthropicBaseUrl();
     const urlAnswer = await rl.question(`ANTHROPIC_BASE_URL [${suggestedBaseUrl}]: `);
@@ -151,6 +196,33 @@ async function runClaudeInstallFlow() {
     } else {
       console.log(`Claude settings already had ANTHROPIC_BASE_URL=${baseUrl}`);
     }
+  } finally {
+    rl.close();
+  }
+}
+
+async function runDisableRouteFlow() {
+  const rl = createInterface({ input, output, terminal: Boolean(output.isTTY) });
+
+  try {
+    const selectedScope = await promptForSettingsScope(rl);
+    const settingsPath = resolveSettingsPath(selectedScope.key, { homeDir: homedir(), cwd: process.cwd() });
+    const { existed, settings } = await loadSettingsFile(settingsPath);
+
+    if (!existed) {
+      console.log(`Claude settings file does not exist: ${settingsPath}`);
+      return;
+    }
+
+    const update = removeAnthropicBaseUrl(settings);
+
+    if (!update.changed) {
+      console.log(`Claude settings did not contain ANTHROPIC_BASE_URL: ${settingsPath}`);
+      return;
+    }
+
+    await writeSettingsAtomic(settingsPath, update.nextSettings);
+    console.log(`Removed ANTHROPIC_BASE_URL from Claude settings: ${settingsPath}`);
   } finally {
     rl.close();
   }
@@ -207,8 +279,13 @@ async function main(argv) {
       return;
     }
 
-    if (command === "install-claude" || (command === "configure" && subcommand === "claude")) {
+    if ((command === "claude" && subcommand === "install") || command === "install-claude" || (command === "configure" && subcommand === "claude")) {
       await runClaudeInstallFlow();
+      return;
+    }
+
+    if ((command === "claude" && subcommand === "disable") || command === "disable-route") {
+      await runDisableRouteFlow();
       return;
     }
 
@@ -231,7 +308,7 @@ async function main(argv) {
       return;
     }
 
-    if (command === "install-service") {
+    if ((command === "service" && subcommand === "install") || command === "install-service") {
       const result = await installService({
         nodePath: process.execPath,
         scriptPath: fileURLToPath(import.meta.url),
@@ -263,7 +340,7 @@ async function main(argv) {
     process.exitCode = 1;
   } catch (error) {
     if (error.code === "SERVICE_NOT_INSTALLED") {
-      console.error("Service is not installed. Run `claude-sub-proxy install-service` first.");
+      console.error("Service is not installed. Run `claude-sub-proxy service install` first.");
       process.exitCode = 1;
       return;
     }

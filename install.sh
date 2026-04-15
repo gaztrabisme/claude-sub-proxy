@@ -95,8 +95,8 @@ main() {
 Next steps:
   ${PACKAGE_NAME} configure init
   ${PACKAGE_NAME} configure add
-  ${PACKAGE_NAME} install-claude
-  ${PACKAGE_NAME} install-service
+  ${PACKAGE_NAME} claude install
+  ${PACKAGE_NAME} service install
   ${PACKAGE_NAME} service start
 EOF
 }

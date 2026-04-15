@@ -23,10 +23,10 @@ claude-sub-proxy configure init
 claude-sub-proxy configure add
 
 # Point Claude Code at the proxy (interactive)
-claude-sub-proxy install-claude
+claude-sub-proxy claude install
 
 # Install and start the background service
-claude-sub-proxy install-service
+claude-sub-proxy service install
 claude-sub-proxy service start
 
 # Launch Claude Code
@@ -47,20 +47,51 @@ Uninstall:
 ./uninstall.sh
 ```
 
-## CLI commands
+## CLI usage guide
 
 ```bash
 claude-sub-proxy start
-claude-sub-proxy install-claude
-claude-sub-proxy install-service
-claude-sub-proxy service start
-claude-sub-proxy service restart
-claude-sub-proxy service stop
+
 claude-sub-proxy configure init
-claude-sub-proxy configure claude
 claude-sub-proxy configure show
 claude-sub-proxy configure add
 claude-sub-proxy configure remove <name>
+
+claude-sub-proxy claude install
+claude-sub-proxy claude disable
+
+claude-sub-proxy service install
+claude-sub-proxy service start
+claude-sub-proxy service restart
+claude-sub-proxy service stop
+```
+
+Grouped by command:
+
+- `start`
+  Starts the proxy in the foreground for local testing or manual runs.
+- `configure`
+  `configure init` creates the config file from the example template.
+  `configure show` prints the current config with secrets redacted in terminal output.
+  `configure add` interactively adds a route that matches Claude model names and forwards them to another provider.
+  `configure remove <name>` removes a route by its unique name.
+- `claude`
+  `claude install` writes `ANTHROPIC_BASE_URL` into Claude settings so Claude Code sends requests to this proxy.
+  `claude disable` removes `ANTHROPIC_BASE_URL` from Claude settings and restores default Claude endpoint behavior.
+- `service`
+  `service install` installs the user service for the current OS.
+  `service start` starts the installed service.
+  `service restart` restarts the installed service.
+  `service stop` stops the installed service.
+
+Typical setup order:
+
+```bash
+claude-sub-proxy configure init
+claude-sub-proxy configure add
+claude-sub-proxy claude install
+claude-sub-proxy service install
+claude-sub-proxy service start
 ```
 
 ## Installer
@@ -160,7 +191,7 @@ You can route different models to different providers:
 ## Run as background service
 
 ```bash
-claude-sub-proxy install-service
+claude-sub-proxy service install
 claude-sub-proxy service start
 claude-sub-proxy service restart
 claude-sub-proxy service stop
@@ -182,7 +213,7 @@ Service logs are system-managed:
 Use the interactive installer to set `ANTHROPIC_BASE_URL` in Claude Code `settings.json`:
 
 ```bash
-claude-sub-proxy install-claude
+claude-sub-proxy claude install
 ```
 
 The command lets you choose where to write:
@@ -192,6 +223,14 @@ The command lets you choose where to write:
 - `.claude/settings.local.json`
 
 If `env.ANTHROPIC_BASE_URL` already exists with a different value, the installer shows a warning and asks before overwriting.
+
+To remove the override and send Claude Code back to its default Anthropic endpoint behavior:
+
+```bash
+claude-sub-proxy claude disable
+```
+
+The command prompts for the same Claude settings scope and removes only `env.ANTHROPIC_BASE_URL`, preserving other settings.
 
 ## How it works
 

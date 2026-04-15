@@ -31,13 +31,13 @@ export function isServiceInstalled(platform = getPlatform()) {
 
 export function getLaunchctlDomain() {
   if (process.getuid() === 0 || process.env.SUDO_UID) {
-    throw new Error("macOS user services must be installed as the logged-in user. Run `claude-sub-proxy install-service` without sudo.");
+    throw new Error("macOS user services must be installed as the logged-in user. Run `claude-sub-proxy service install` without sudo.");
   }
 
   const uid = Number(process.getuid());
 
   if (!Number.isInteger(uid) || uid < 1) {
-    throw new Error("macOS user services must be installed as a regular user session. Run `claude-sub-proxy install-service` without sudo.");
+    throw new Error("macOS user services must be installed as a regular user session. Run `claude-sub-proxy service install` without sudo.");
   }
 
   return `gui/${uid}`;

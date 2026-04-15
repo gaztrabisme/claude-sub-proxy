@@ -7,6 +7,7 @@ import { tmpdir } from "os";
 
 import {
   loadSettingsFile,
+  removeAnthropicBaseUrl,
   resolveSettingsPath,
   setAnthropicBaseUrl,
   writeSettingsAtomic,
@@ -53,6 +54,40 @@ test("setAnthropicBaseUrl handles idempotent value", () => {
 
   assert.equal(update.changed, false);
   assert.equal(update.needsConfirmation, false);
+});
+
+test("removeAnthropicBaseUrl removes base url and preserves sibling env vars", () => {
+  const update = removeAnthropicBaseUrl({
+    featureFlags: { safeMode: true },
+    env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:13456", OTHER_VAR: "ok" },
+  });
+
+  assert.equal(update.changed, true);
+  assert.equal(update.previousValue, "http://127.0.0.1:13456");
+  assert.deepEqual(update.nextSettings, {
+    featureFlags: { safeMode: true },
+    env: { OTHER_VAR: "ok" },
+  });
+});
+
+test("removeAnthropicBaseUrl is a no-op when env is missing", () => {
+  const update = removeAnthropicBaseUrl({ featureFlags: { safeMode: true } });
+
+  assert.equal(update.changed, false);
+  assert.equal(update.previousValue, undefined);
+  assert.deepEqual(update.nextSettings, { featureFlags: { safeMode: true } });
+});
+
+test("removeAnthropicBaseUrl is a no-op when base url is absent", () => {
+  const update = removeAnthropicBaseUrl({ env: { OTHER_VAR: "ok" } });
+
+  assert.equal(update.changed, false);
+  assert.equal(update.previousValue, undefined);
+  assert.deepEqual(update.nextSettings, { env: { OTHER_VAR: "ok" } });
+});
+
+test("removeAnthropicBaseUrl rejects invalid env shape", () => {
+  assert.throws(() => removeAnthropicBaseUrl({ env: [] }), /invalid "env" value/);
 });
 
 test("writeSettingsAtomic persists JSON", async () => {

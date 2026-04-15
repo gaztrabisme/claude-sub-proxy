@@ -76,6 +76,42 @@ export function setAnthropicBaseUrl(settings, baseUrl) {
   };
 }
 
+export function removeAnthropicBaseUrl(settings) {
+  const nextSettings = { ...settings };
+  const envValue = nextSettings.env;
+
+  if (envValue === undefined) {
+    return {
+      nextSettings,
+      previousValue: undefined,
+      changed: false,
+    };
+  }
+
+  if (!envValue || typeof envValue !== "object" || Array.isArray(envValue)) {
+    throw new Error("settings.json contains an invalid \"env\" value; expected an object.");
+  }
+
+  nextSettings.env = { ...envValue };
+  const previousValue = nextSettings.env.ANTHROPIC_BASE_URL;
+
+  if (previousValue === undefined) {
+    return {
+      nextSettings,
+      previousValue,
+      changed: false,
+    };
+  }
+
+  delete nextSettings.env.ANTHROPIC_BASE_URL;
+
+  return {
+    nextSettings,
+    previousValue,
+    changed: true,
+  };
+}
+
 export async function writeSettingsAtomic(settingsPath, settings) {
   const parentDir = dirname(settingsPath);
   await mkdir(parentDir, { recursive: true });
