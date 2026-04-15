@@ -1,6 +1,6 @@
 # claude-sub-proxy
 
-A lightweight proxy (~80 lines, zero dependencies) that reroutes Claude Code subagent calls to cheaper third-party models while keeping your main model on your Anthropic subscription.
+A lightweight proxy with a built-in CLI that reroutes Claude Code subagent calls to cheaper third-party models while keeping your main model on your Anthropic subscription.
 
 **The problem**: Claude Code routers like [CCR](https://github.com/musistudio/claude-code-router) and [CCM](https://github.com/9j/claude-code-mux) require an Anthropic API key. If you're on a Claude Pro/Max subscription (OAuth), they can't authenticate your main model requests.
 
@@ -15,23 +15,115 @@ Claude Code → claude-sub-proxy → Opus requests   → api.anthropic.com (your
 ## Quick start
 
 ```bash
-# Clone
-git clone https://github.com/gaztrabisme/claude-sub-proxy.git
-cd claude-sub-proxy
+# Install the CLI from GitHub
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/install.sh | bash
 
-# Configure
-mkdir -p ~/.claude-sub-proxy
-cp config.example.json ~/.claude-sub-proxy/config.json
-# Edit ~/.claude-sub-proxy/config.json with your API key
+# Configure routing
+claude-sub-proxy configure init
+claude-sub-proxy configure add
 
-# Run
-export MINIMAX_API_KEY="your-key-here"
-node proxy.mjs
+# Point Claude Code at the proxy (interactive)
+claude-sub-proxy claude install
 
-# In another terminal, launch Claude Code through the proxy
-export ANTHROPIC_BASE_URL="http://127.0.0.1:13456"
+# Install and start the background service
+claude-sub-proxy service install
+claude-sub-proxy service start
+
+# Launch Claude Code
 claude
 ```
+
+Prefer a local checkout instead of `curl | bash`:
+
+```bash
+git clone https://github.com/gaztrabisme/claude-sub-proxy.git
+cd claude-sub-proxy
+./install.sh
+```
+
+Uninstall:
+
+```bash
+./uninstall.sh
+```
+
+## CLI usage guide
+
+```bash
+claude-sub-proxy start
+
+claude-sub-proxy configure init
+claude-sub-proxy configure show
+claude-sub-proxy configure add
+claude-sub-proxy configure remove <name>
+
+claude-sub-proxy claude install
+claude-sub-proxy claude disable
+
+claude-sub-proxy service install
+claude-sub-proxy service start
+claude-sub-proxy service restart
+claude-sub-proxy service stop
+```
+
+Grouped by command:
+
+- `start`
+  Starts the proxy in the foreground for local testing or manual runs.
+- `configure`
+  `configure init` creates the config file from the example template.
+  `configure show` prints the current config with secrets redacted in terminal output.
+  `configure add` interactively adds a route that matches Claude model names and forwards them to another provider.
+  `configure remove <name>` removes a route by its unique name.
+- `claude`
+  `claude install` writes `ANTHROPIC_BASE_URL` into Claude settings so Claude Code sends requests to this proxy.
+  `claude disable` removes `ANTHROPIC_BASE_URL` from Claude settings and restores default Claude endpoint behavior.
+- `service`
+  `service install` installs the user service for the current OS.
+  `service start` starts the installed service.
+  `service restart` restarts the installed service.
+  `service stop` stops the installed service.
+
+Typical setup order:
+
+```bash
+claude-sub-proxy configure init
+claude-sub-proxy configure add
+claude-sub-proxy claude install
+claude-sub-proxy service install
+claude-sub-proxy service start
+```
+
+## Installer
+
+The installer only makes the `claude-sub-proxy` command available. It does not create config, modify Claude settings, or install the background service automatically.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/install.sh | bash
+```
+
+By default the installer downloads the `latest` Git tag. Override it with `CLAUDE_SUB_PROXY_INSTALL_REF` to install a different tag:
+
+```bash
+CLAUDE_SUB_PROXY_INSTALL_REF=v1.0.0 \
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/install.sh | bash
+```
+
+To fully remove the global package, service, config, and local proxy Claude settings, run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/uninstall.sh | bash
+```
+
+Requirements:
+
+- `bash`
+- `curl`
+- `tar`
+- Node.js 18+
+- `npm`
+
+If npm installs the package into a directory that is not on your `PATH`, the installer prints the exact export line to add to your shell profile.
 
 ## Configuration
 
@@ -46,7 +138,8 @@ Config lives at `~/.claude-sub-proxy/config.json` (override with `CSP_CONFIG` en
       "match": "haiku|sonnet",
       "api_base": "https://api.minimax.io/anthropic",
       "api_key": "$MINIMAX_API_KEY",
-      "model": "MiniMax-M2.7"
+      "model": "MiniMax-M2.7",
+      "auth_scheme": "x-api-key"
     }
   ]
 }
@@ -56,13 +149,16 @@ Config lives at `~/.claude-sub-proxy/config.json` (override with `CSP_CONFIG` en
 
 | Field | Description |
 |---|---|
-| `name` | Display name for logs |
+| `name` | Display name for logs and unique identifier for `configure remove` |
 | `match` | Regex pattern tested against the model name (case-insensitive) |
 | `api_base` | Base URL of the target API (must be Anthropic-compatible) |
 | `api_key` | API key — prefix with `$` to read from env var (e.g. `$MINIMAX_API_KEY`) |
 | `model` | Model name to send to the target API |
+| `auth_scheme` | Auth header style for routed requests: `x-api-key` (default) or `bearer` |
 
 Unmatched requests pass through to `api.anthropic.com` with original auth headers intact.
+
+`configure show` redacts API keys in terminal output. `configure remove <name>` deletes a route by its unique name.
 
 ### Multiple routes
 
@@ -77,14 +173,16 @@ You can route different models to different providers:
       "match": "haiku",
       "api_base": "https://api.minimax.io/anthropic",
       "api_key": "$MINIMAX_API_KEY",
-      "model": "MiniMax-M2.7"
+      "model": "MiniMax-M2.7",
+      "auth_scheme": "x-api-key"
     },
     {
       "name": "DeepSeek",
       "match": "sonnet",
       "api_base": "https://api.deepseek.com/v1",
       "api_key": "$DEEPSEEK_API_KEY",
-      "model": "deepseek-chat"
+      "model": "deepseek-chat",
+      "auth_scheme": "bearer"
     }
   ]
 }
@@ -93,20 +191,46 @@ You can route different models to different providers:
 ## Run as background service
 
 ```bash
-# Start
-MINIMAX_API_KEY="your-key" nohup node proxy.mjs > ~/.claude-sub-proxy/proxy.log 2>&1 &
-
-# Stop
-pkill -f "node.*proxy.mjs"
+claude-sub-proxy service install
+claude-sub-proxy service start
+claude-sub-proxy service restart
+claude-sub-proxy service stop
 ```
 
-Or add to your shell profile:
+Supported service managers:
+
+- macOS: `launchd` LaunchAgent in `~/Library/LaunchAgents`
+- Linux: `systemd --user` unit in `~/.config/systemd/user`
+
+Service mode should use raw API keys in `~/.claude-sub-proxy/config.json`. Shell environment variables are not a reliable source for background services.
+Service logs are system-managed:
+
+- macOS: sent to the system log via `logger`
+- Linux: sent to `journald` and viewed with `journalctl`
+
+## Configure Claude endpoint
+
+Use the interactive installer to set `ANTHROPIC_BASE_URL` in Claude Code `settings.json`:
 
 ```bash
-# ~/.zshrc or ~/.bashrc
-alias claude-proxy='MINIMAX_API_KEY="your-key" node ~/path/to/proxy.mjs &'
-alias claude-routed='export ANTHROPIC_BASE_URL="http://127.0.0.1:13456" && claude'
+claude-sub-proxy claude install
 ```
+
+The command lets you choose where to write:
+
+- `~/.claude/settings.json`
+- `.claude/settings.json`
+- `.claude/settings.local.json`
+
+If `env.ANTHROPIC_BASE_URL` already exists with a different value, the installer shows a warning and asks before overwriting.
+
+To remove the override and send Claude Code back to its default Anthropic endpoint behavior:
+
+```bash
+claude-sub-proxy claude disable
+```
+
+The command prompts for the same Claude settings scope and removes only `env.ANTHROPIC_BASE_URL`, preserving other settings.
 
 ## How it works
 
@@ -131,6 +255,20 @@ PRs welcome for other providers.
 |---|---|
 | `CSP_CONFIG` | Path to config file (default: `~/.claude-sub-proxy/config.json`) |
 | `CSP_PORT` | Override port (default: from config or `13456`) |
+
+## Troubleshooting
+
+### Linux
+
+- Check service status with `systemctl --user status com.claude-sub-proxy`.
+- Stream logs with `journalctl --user-unit com.claude-sub-proxy -f`.
+- Show recent logs with `journalctl --user-unit com.claude-sub-proxy --since "1 hour ago"`.
+
+### MacOS
+
+- Check service status with `launchctl print gui/$(id -u)/com.claude-sub-proxy`.
+- Stream logs with `log stream --style syslog --predicate 'eventMessage CONTAINS "claude-sub-proxy"'`.
+- Show recent logs with `log show --last 1h --style syslog --predicate 'eventMessage CONTAINS "claude-sub-proxy"'`.
 
 ## License
 

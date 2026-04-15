@@ -4,10 +4,11 @@
   "description": "Lightweight proxy that reroutes Claude Code subagent calls to cheaper third-party models while keeping the main model on your Anthropic subscription.",
   "type": "module",
   "bin": {
-    "claude-sub-proxy": "./proxy.mjs"
+    "claude-sub-proxy": "./cli.mjs"
   },
   "scripts": {
-    "start": "node proxy.mjs"
+    "start": "node cli.mjs start",
+    "test": "node --test && bash -n install.sh && bash -n uninstall.sh"
   },
   "keywords": ["claude-code", "proxy", "subagent", "minimax", "routing"],
   "license": "MIT",
