@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_OWNER="hunguyen1702"
+REPO_OWNER="gaztrabisme"
 REPO_NAME="claude-sub-proxy"
-REPO_REF="${CLAUDE_SUB_PROXY_INSTALL_REF:-latest}"
+REPO_REF="${CLAUDE_SUB_PROXY_INSTALL_REF:-master}"
 PACKAGE_NAME="claude-sub-proxy"
 
 die() {
@@ -58,7 +58,7 @@ main() {
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/claude-sub-proxy.XXXXXX")"
   trap '[ -n "${tmp_dir:-}" ] && rm -rf "$tmp_dir"' EXIT
 
-  archive_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/tags/${REPO_REF}.tar.gz"
+  archive_url="https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/heads/${REPO_REF}.tar.gz"
   archive_path="${tmp_dir}/package.tar.gz"
 
   printf 'Downloading %s...\n' "$archive_url"

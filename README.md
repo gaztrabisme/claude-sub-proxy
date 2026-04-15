@@ -16,7 +16,7 @@ Claude Code → claude-sub-proxy → Opus requests   → api.anthropic.com (your
 
 ```bash
 # Install the CLI from GitHub
-curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/install.sh | bash
 
 # Configure routing
 claude-sub-proxy configure init
@@ -36,7 +36,7 @@ claude
 Prefer a local checkout instead of `curl | bash`:
 
 ```bash
-git clone https://github.com/hunguyen1702/claude-sub-proxy.git
+git clone https://github.com/gaztrabisme/claude-sub-proxy.git
 cd claude-sub-proxy
 ./install.sh
 ```
@@ -99,20 +99,20 @@ claude-sub-proxy service start
 The installer only makes the `claude-sub-proxy` command available. It does not create config, modify Claude settings, or install the background service automatically.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/install.sh | bash
 ```
 
 By default the installer downloads the `latest` Git tag. Override it with `CLAUDE_SUB_PROXY_INSTALL_REF` to install a different tag:
 
 ```bash
 CLAUDE_SUB_PROXY_INSTALL_REF=v1.0.0 \
-curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/install.sh | bash
 ```
 
 To fully remove the global package, service, config, and local proxy Claude settings, run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hunguyen1702/claude-sub-proxy/master/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/gaztrabisme/claude-sub-proxy/master/uninstall.sh | bash
 ```
 
 Requirements:
